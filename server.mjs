@@ -1,6 +1,8 @@
 import express from 'express';
 import { WebSocketServer } from 'ws';
-import { TikTokLiveConnection, WebcastEvent, ControlEvent } from 'tiktok-live-connector';
+new TikTokLiveConnection(username, {
+  processInitialData: true
+})
 const app=express();app.use(express.static('public'));const server=app.listen(process.env.PORT||3000,'0.0.0.0');const wss=new WebSocketServer({server});
 const users=new Map();let connected=false;let lastError='';const username=process.env.TIKTOK_USERNAME||'voxiralive';
 function emit(data){const s=JSON.stringify(data);for(const c of wss.clients)if(c.readyState===1)c.send(s)}
