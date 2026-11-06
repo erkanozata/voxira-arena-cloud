@@ -1,32 +1,294 @@
-<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta name="theme-color" content="#0c1621"><title>VOXIRA ARENA CLOUD</title><style>*{box-sizing:border-box}body{margin:0;background:#08121b;color:white;font-family:system-ui,Arial;overflow:hidden}#wrap{width:100vw;height:100dvh;display:flex;flex-direction:column;background:linear-gradient(#102334,#08121b)}header{padding:12px 14px 8px;text-align:center;background:#101d2b}h1{font-size:22px;letter-spacing:3px;margin:0;color:#ffdc6e;text-shadow:0 0 12px #ffb300}.sub{font-size:11px;color:#b9d4df;margin:4px}.scores{display:flex;gap:8px;margin-top:8px}.score{flex:1;border-radius:10px;padding:8px;font-weight:900;font-size:25px;background:#145c99}.score.red{background:#9e283c}.score small{display:block;font-size:11px}#status{font-size:11px;color:#f6d977;margin-top:7px}#arena{position:relative;flex:1;overflow:hidden;background:repeating-linear-gradient(115deg,transparent 0 35px,#ffffff06 36px 38px),linear-gradient(#86c46d,#5f9d50)}#field{width:100%;height:100%;display:block}.banner{position:absolute;top:14px;left:8%;width:84%;text-align:center;background:#132c35d9;border:2px solid #f9df7c;border-radius:14px;padding:10px;font-weight:900;box-shadow:0 0 20px #ffca4080;transition:opacity .5s;pointer-events:none}.banner.hide{opacity:0}footer{text-align:center;padding:12px 6px;background:#0b1724;font-weight:800;font-size:14px}.hint{color:#c5d5dd;font-size:11px;margin-top:5px}#demo{position:absolute;bottom:12px;right:10px;background:#0a2439bd;border:1px solid #fff6;color:white;border-radius:7px;padding:7px;font-size:11px}#demo button{margin:3px;padding:6px;border:0;border-radius:5px;background:#f7c548;color:#172331;font-weight:bold}</style></head><body><div id="wrap"><header><h1>⚔ VOXIRA ARENA</h1><div class="sub">@voxiralive • CANLI TAKIM SAVAŞI</div><div class="scores"><div class="score">🔵 MAVİ <span id="blue">0</span><small id="bc">0 asker</small></div><div class="score red">🔴 KIRMIZI <span id="red">0</span><small id="rc">0 asker</small></div></div><div id="status">TikTok bağlantısı bekleniyor...</div></header><main id="arena"><canvas id="field"></canvas><div id="banner" class="banner">💬 Takım seç: MAVİ veya KIRMIZI</div><div id="demo"><div>Yalnızca TEST</div><button onclick="test('blue')">🌹 MAVİ</button><button onclick="test('red')">🌹 KIRMIZI</button><button onclick="this.parentElement.remove()">Gizle</button></div></main><footer>💬 MAVİ / KIRMIZI YAZ • 🌹 GÜL = 5 ASKER<div class="hint">🎁 HEDİYE = TAKIM GÜCÜ • 🦁 ASLAN = BOSS</div></footer></div><script>
-const canvas=document.getElementById('field'),ctx=canvas.getContext('2d');let W=0,H=0;function resize(){W=canvas.clientWidth;H=canvas.clientHeight;canvas.width=W*devicePixelRatio;canvas.height=H*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}addEventListener('resize',resize);resize();const troops=[],scores={blue:0,red:0};let msgTimer;function banner(t){const b=document.getElementById('banner');b.textContent=t;b.classList.remove('hide');clearTimeout(msgTimer);msgTimer=setTimeout(()=>b.classList.add('hide'),3800)}function spawn(team,n,name){for(let i=0;i<Math.min(n,65);i++)troops.push({team,name,x:(team==='blue'?.16:.84)*W+(Math.random()-.5)*W*.22,y:Math.random()*H,vx:0,vy:0,hp:100,phase:Math.random()*6.28});scores[team]+=n;document.getElementById(team).textContent=scores[team];update()}function update(){document.getElementById('bc').textContent=troops.filter(x=>x.team==='blue').length+' asker';document.getElementById('rc').textContent=troops.filter(x=>x.team==='red').length+' asker'}function handle(d){if(d.type==='status'){document.getElementById('status').textContent=d.connected?'🟢 TikTok LIVE BAĞLANDI':'🟠 TikTok bekleniyor'+(d.lastError?' • '+d.lastError:'');return}if(d.type==='join'){spawn(d.team,1,d.name);banner('⚔ '+d.name+' '+(d.team==='blue'?'MAVİ':'KIRMIZI')+' TAKIMA KATILDI!')}if(d.type==='gift'){spawn(d.team,d.soldiers,d.name);banner((d.boss?'🦁':'🌹')+' '+d.name+' • '+d.gift+' x'+d.qty+' • +'+d.soldiers+' ASKER!')}if(d.type==='like'){scores[d.team]+=d.count;document.getElementById(d.team).textContent=scores[d.team]}}function test(team){handle({type:'gift',team,name:'TEST OYUNCUSU',gift:'Gül',qty:1,soldiers:5})}function connect(){const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);ws.onmessage=e=>{try{handle(JSON.parse(e.data))}catch{}};ws.onclose=()=>{document.getElementById('status').textContent='🔴 Oyun sunucusuna yeniden bağlanıyor';setTimeout(connect,3000)}}connect();
-function draw(t){ctx.clearRect(0,0,W,H);ctx.fillStyle='#b2df8b';for(let i=0;i<45;i++){let x=(i*97)%Math.max(W,1),y=(i*137)%Math.max(H,1);ctx.fillRect(x,y,2,7)}ctx.strokeStyle='#e7edbc88';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(W/2,H/2,W*.43,H*.36,0,0,Math.PI*2);ctx.stroke();for(const p of troops){let target=null,best=1e9;for(const q of troops){if(q.team===p.team)continue;const dist=(q.x-p.x)**2+(q.y-p.y)**2;if(dist<best){best=dist;target=q}}if(target){let dx=target.x-p.x,dy=target.y-p.y,dist=Math.sqrt(best)||1;if(dist>14){p.x+=dx/dist*.42;p.y+=dy/dist*.42}else if(Math.random()<.016){target.hp-=20;scores[p.team]++;document.getElementById(p.team).textContent=scores[p.team]}}p.phase+=.08;ctx.fillStyle='#25332844';ctx.beginPath();ctx.ellipse(p.x,p.y+9,7,3,0,0,7);ctx.fill();ctx.fillStyle=p.team==='blue'?'#1267d4':'#e52f42';ctx.fillRect(p.x-5,p.y-2,10,14);ctx.fillStyle='#ffdfb5';ctx.beginPath();ctx.arc(p.x,p.y-7,5,0,7);ctx.fill();ctx.fillStyle=p.team==='blue'?'#053a7b':'#84202b';ctx.fillRect(p.x-6,p.y-12,12,4);ctx.strokeStyle='#233b37';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.x-3,p.y+12);ctx.lineTo(p.x-3+Math.sin(p.phase)*3,p.y+18);ctx.moveTo(p.x+3,p.y+12);ctx.lineTo(p.x+3-Math.sin(p.phase)*3,p.y+18);ctx.stroke();if(p.name&&Math.random()<.002){} }for(let i=troops.length-1;i>=0;i--)if(troops[i].hp<=0)troops.splice(i,1);if(t%30<16)update();requestAnimationFrame(draw)}requestAnimationFrame(draw);</script></body></html>
 
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#071320">
+<title>VOXIRA ARENA LIVE</title>
 <style>
-html, body {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  background: #08111f;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-#game, #app, #arena {
-  width: 100%;
-  max-width: 100%;
-  min-height: 100dvh;
-}
-
-canvas {
-  display: block;
-  max-width: 100%;
-  touch-action: none;
-}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#071320;font-family:system-ui,Arial;color:#fff}
+#app{position:fixed;inset:0;width:100%;height:100%;height:100dvh;display:flex;flex-direction:column;overflow:hidden;background:#071320}
+header{flex:0 0 auto;background:linear-gradient(180deg,#14283c,#091826);padding:8px 10px 7px;text-align:center;border-bottom:2px solid #e3b64b}
+h1{font-size:clamp(21px,6vw,32px);margin:0;color:#ffdc69;letter-spacing:2px;text-shadow:0 2px 10px #f90}
+.sub{font-size:11px;color:#c7d9e8;margin:3px}
+.scores{display:flex;gap:8px;margin-top:7px}
+.score{flex:1;min-width:0;border-radius:10px;padding:7px 5px;background:linear-gradient(#2584dd,#10457f);font-weight:900;font-size:clamp(18px,5vw,27px);box-shadow:inset 0 0 12px #ffffff20}
+.score.red{background:linear-gradient(#ed4a60,#842238)}
+.score small{display:block;font-size:11px;margin-top:2px}
+#status{font-size:10px;color:#ffe28a;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#arena{position:relative;flex:1 1 0;min-height:0;width:100%;overflow:hidden;background:linear-gradient(160deg,#a7d77d,#68ae57 55%,#4d913f)}
+#field{display:block;width:100%;height:100%;touch-action:none}
+#banner{position:absolute;top:12px;left:5%;width:90%;padding:12px 8px;text-align:center;border:2px solid #ffdd73;border-radius:14px;background:#102333e8;color:#fff5c0;font-weight:900;font-size:clamp(13px,3.7vw,19px);text-shadow:0 2px 4px #000;box-shadow:0 0 20px #ffbb5480;transition:opacity .4s;pointer-events:none}
+#banner.hide{opacity:0}
+#event{position:absolute;top:82px;left:5%;width:90%;text-align:center;font-size:15px;font-weight:900;color:#fff;text-shadow:0 2px 5px #000;pointer-events:none}
+#demo{position:absolute;right:8px;bottom:8px;padding:7px;background:#09243cdd;border:1px solid #ffffff55;border-radius:10px;text-align:center;font-size:10px}
+#demo button{border:0;border-radius:6px;background:#ffcf57;color:#182231;font-weight:900;padding:7px;margin:3px}
+footer{flex:0 0 auto;background:#091827;padding:8px 5px calc(8px + env(safe-area-inset-bottom));text-align:center;border-top:2px solid #e2b34c}
+.action{font-size:clamp(12px,3.5vw,17px);font-weight:900;color:#fff}
+.hint{font-size:11px;color:#ffd66d;margin-top:4px}
+#round{font-size:10px;color:#d6e7f1;margin-top:3px}
 </style>
+</head>
+<body>
+<div id="app">
+<header>
+<h1>⚔ VOXIRA ARENA ⚔</h1>
+<div class="sub">@voxiralive • İNTERAKTİF TAKIM SAVAŞI</div>
+<div class="scores">
+<div class="score">🔵 MAVİ <span id="blue">0</span><small id="bc">0 asker</small></div>
+<div class="score red">🔴 KIRMIZI <span id="red">0</span><small id="rc">0 asker</small></div>
+</div>
+<div id="status">TikTok bağlantısı kontrol ediliyor...</div>
+</header>
+
+<main id="arena">
+<canvas id="field"></canvas>
+<div id="banner">💬 MAVİ veya KIRMIZI yazarak takım seç!</div>
+<div id="event"></div>
+<div id="demo">
+<div>TEST MODU</div>
+<button onclick="test('blue')">🌹 MAVİ</button>
+<button onclick="test('red')">🌹 KIRMIZI</button>
+<button onclick="document.getElementById('demo').remove()">GİZLE</button>
+</div>
+</main>
+
+<footer>
+<div class="action">💬 MAVİ / KIRMIZI YAZ • 🌹 GÜL = 5 ASKER</div>
+<div class="hint">🎁 HEDİYE = GÜÇ • 🦁 ASLAN = BOSS</div>
+<div id="round">⚔ SAVAŞ DEVAM EDİYOR</div>
+</footer>
+</div>
+
+<script>
+const canvas=document.getElementById("field");
+const ctx=canvas.getContext("2d");
+const troops=[];
+const scores={blue:0,red:0};
+const MAX_TROOPS=350;
+let W=1,H=1,dpr=1;
+let bannerTimer;
+let eventTimer;
+let lastTime=0;
+
+function resize(){
+ const rect=canvas.getBoundingClientRect();
+ W=Math.max(1,rect.width);
+ H=Math.max(1,rect.height);
+ dpr=Math.min(window.devicePixelRatio||1,2);
+ canvas.width=Math.round(W*dpr);
+ canvas.height=Math.round(H*dpr);
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener("resize",resize);
+resize();
+
+function showBanner(text){
+ const el=document.getElementById("banner");
+ el.textContent=text;
+ el.classList.remove("hide");
+ clearTimeout(bannerTimer);
+ bannerTimer=setTimeout(()=>el.classList.add("hide"),3500);
+}
+
+function showEvent(text){
+ const el=document.getElementById("event");
+ el.textContent=text;
+ clearTimeout(eventTimer);
+ eventTimer=setTimeout(()=>el.textContent="",3500);
+}
+
+function updateUI(){
+ document.getElementById("blue").textContent=scores.blue;
+ document.getElementById("red").textContent=scores.red;
+ document.getElementById("bc").textContent=
+ troops.filter(p=>p.team==="blue").length+" asker";
+ document.getElementById("rc").textContent=
+ troops.filter(p=>p.team==="red").length+" asker";
+}
+
+function spawn(team,count,name,boss=false){
+ if(team!=="blue"&&team!=="red")return;
+ const n=Math.min(Math.max(0,Number(count)||0),100);
+ const available=Math.max(0,MAX_TROOPS-troops.length);
+ const amount=Math.min(n,available);
+ for(let i=0;i<amount;i++){
+  troops.push({
+   team,name,
+   x:(team==="blue"?.18:.82)*W+(Math.random()-.5)*W*.20,
+   y:H*(.12+Math.random()*.76),
+   hp:boss?600:100,
+   maxHp:boss?600:100,
+   damage:boss?35:12,
+   speed:boss?38:65,
+   boss:boss&&i===0,
+   phase:Math.random()*6.28,
+   cooldown:Math.random()*.6
+  });
+ }
+ scores[team]+=n;
+ updateUI();
+}
+
+function handle(data){
+ if(!data||!data.type)return;
+ if(data.type==="status"){
+  document.getElementById("status").textContent=
+  data.connected?"🟢 TIKTOK LIVE BAĞLANDI":
+  "🟠 TIKTOK BAĞLANTISI BEKLENİYOR";
+  return;
+ }
+ if(data.type==="join"){
+  spawn(data.team,1,data.name);
+  showBanner("⚔ "+data.name+" "+(data.team==="blue"?"MAVİ":"KIRMIZI")+" TAKIMDA!");
+ }
+ if(data.type==="gift"){
+  spawn(data.team,data.soldiers,data.name,!!data.boss);
+  showBanner("🎁 "+data.name+" • "+data.gift+" x"+data.qty);
+  showEvent("⚔ +"+data.soldiers+" ASKER!");
+ }
+ if(data.type==="like"){
+  if(scores[data.team]!==undefined){
+   scores[data.team]+=Math.max(0,Number(data.count)||0);
+   updateUI();
+  }
+ }
+}
+
+function test(team){
+ handle({
+  type:"gift",team,name:"TEST OYUNCUSU",
+  gift:"Gül",qty:1,soldiers:5,boss:false
+ });
+}
+
+function connect(){
+ const protocol=location.protocol==="https:"?"wss://":"ws://";
+ const ws=new WebSocket(protocol+location.host);
+ ws.onmessage=e=>{
+  try{handle(JSON.parse(e.data))}catch(err){
+   console.warn("Invalid event",err);
+  }
+ };
+ ws.onerror=()=>ws.close();
+ ws.onclose=()=>{
+  document.getElementById("status").textContent=
+  "🔴 SUNUCUYA YENİDEN BAĞLANILIYOR";
+  setTimeout(connect,3000);
+ };
+}
+connect();
+
+function drawSoldier(p,time){
+ const scale=p.boss?1.8:1.25;
+ ctx.save();
+ ctx.translate(p.x,p.y);
+ ctx.scale(scale,scale);
+ ctx.fillStyle="#20352255";
+ ctx.beginPath();
+ ctx.ellipse(0,14,8,3,0,0,Math.PI*2);
+ ctx.fill();
+
+ ctx.fillStyle=p.team==="blue"?"#166ee8":"#ed334c";
+ ctx.fillRect(-7,-2,14,17);
+
+ ctx.fillStyle="#ffdbb0";
+ ctx.beginPath();
+ ctx.arc(0,-9,7,0,Math.PI*2);
+ ctx.fill();
+
+ ctx.fillStyle=p.team==="blue"?"#063c8b":"#842036";
+ ctx.fillRect(-8,-15,16,5);
+
+ ctx.strokeStyle="#263b39";
+ ctx.lineWidth=3;
+ ctx.beginPath();
+ const walk=Math.sin(time*.009+p.phase)*3;
+ ctx.moveTo(-4,15);ctx.lineTo(-4+walk,23);
+ ctx.moveTo(4,15);ctx.lineTo(4-walk,23);
+ ctx.stroke();
+
+ if(p.boss){
+  ctx.fillStyle="#ffe36b";
+  ctx.font="17px system-ui";
+  ctx.textAlign="center";
+  ctx.fillText("👑",0,-21);
+ }
+ ctx.fillStyle="#162d22";
+ ctx.fillRect(-10,-23,20,3);
+ ctx.fillStyle="#42f58d";
+ ctx.fillRect(-10,-23,20*Math.max(0,p.hp/p.maxHp),3);
+ ctx.restore();
+}
+
+function draw(time){
+ const dt=Math.min((time-lastTime)/1000||0,.05);
+ lastTime=time;
+ ctx.clearRect(0,0,W,H);
+
+ // Arena markings
+ ctx.strokeStyle="#f1f7cc88";
+ ctx.lineWidth=3;
+ ctx.beginPath();
+ ctx.ellipse(W/2,H/2,W*.45,H*.42,0,0,Math.PI*2);
+ ctx.stroke();
+
+ ctx.beginPath();
+ ctx.moveTo(W/2,0);
+ ctx.lineTo(W/2,H);
+ ctx.stroke();
+
+ // Decorative grass
+ ctx.fillStyle="#3c8a3d77";
+ for(let i=0;i<45;i++){
+  const x=(i*97)%W;
+  const y=(i*139)%H;
+  ctx.fillRect(x,y,3,7);
+ }
+
+ // Find opponents and fight
+ for(const p of troops){
+  let target=null;
+  let best=Infinity;
+  for(const q of troops){
+   if(q.team===p.team||q.hp<=0)continue;
+   const dist=(q.x-p.x)**2+(q.y-p.y)**2;
+   if(dist<best){best=dist;target=q;}
+  }
+  if(target){
+   const dx=target.x-p.x;
+   const dy=target.y-p.y;
+   const distance=Math.sqrt(best)||1;
+   if(distance>20){
+    p.x+=dx/distance*p.speed*dt;
+    p.y+=dy/distance*p.speed*dt;
+   }else{
+    p.cooldown-=dt;
+    if(p.cooldown<=0){
+     target.hp-=p.damage;
+     p.cooldown=.5;
+     if(target.hp<=0)scores[p.team]+=2;
+    }
+   }
+  }
+  p.x=Math.max(12,Math.min(W-12,p.x));
+  p.y=Math.max(30,Math.min(H-26,p.y));
+  drawSoldier(p,time);
+ }
+
+ for(let i=troops.length-1;i>=0;i--){
+  if(troops[i].hp<=0)troops.splice(i,1);
+ }
+
+ if(Math.floor(time/500)!==Math.floor((time-16)/500)){
+  updateUI();
+ }
+
+ requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
