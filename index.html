@@ -1,3 +1,32 @@
 <!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta name="theme-color" content="#0c1621"><title>VOXIRA ARENA CLOUD</title><style>*{box-sizing:border-box}body{margin:0;background:#08121b;color:white;font-family:system-ui,Arial;overflow:hidden}#wrap{width:100vw;height:100dvh;display:flex;flex-direction:column;background:linear-gradient(#102334,#08121b)}header{padding:12px 14px 8px;text-align:center;background:#101d2b}h1{font-size:22px;letter-spacing:3px;margin:0;color:#ffdc6e;text-shadow:0 0 12px #ffb300}.sub{font-size:11px;color:#b9d4df;margin:4px}.scores{display:flex;gap:8px;margin-top:8px}.score{flex:1;border-radius:10px;padding:8px;font-weight:900;font-size:25px;background:#145c99}.score.red{background:#9e283c}.score small{display:block;font-size:11px}#status{font-size:11px;color:#f6d977;margin-top:7px}#arena{position:relative;flex:1;overflow:hidden;background:repeating-linear-gradient(115deg,transparent 0 35px,#ffffff06 36px 38px),linear-gradient(#86c46d,#5f9d50)}#field{width:100%;height:100%;display:block}.banner{position:absolute;top:14px;left:8%;width:84%;text-align:center;background:#132c35d9;border:2px solid #f9df7c;border-radius:14px;padding:10px;font-weight:900;box-shadow:0 0 20px #ffca4080;transition:opacity .5s;pointer-events:none}.banner.hide{opacity:0}footer{text-align:center;padding:12px 6px;background:#0b1724;font-weight:800;font-size:14px}.hint{color:#c5d5dd;font-size:11px;margin-top:5px}#demo{position:absolute;bottom:12px;right:10px;background:#0a2439bd;border:1px solid #fff6;color:white;border-radius:7px;padding:7px;font-size:11px}#demo button{margin:3px;padding:6px;border:0;border-radius:5px;background:#f7c548;color:#172331;font-weight:bold}</style></head><body><div id="wrap"><header><h1>⚔ VOXIRA ARENA</h1><div class="sub">@voxiralive • CANLI TAKIM SAVAŞI</div><div class="scores"><div class="score">🔵 MAVİ <span id="blue">0</span><small id="bc">0 asker</small></div><div class="score red">🔴 KIRMIZI <span id="red">0</span><small id="rc">0 asker</small></div></div><div id="status">TikTok bağlantısı bekleniyor...</div></header><main id="arena"><canvas id="field"></canvas><div id="banner" class="banner">💬 Takım seç: MAVİ veya KIRMIZI</div><div id="demo"><div>Yalnızca TEST</div><button onclick="test('blue')">🌹 MAVİ</button><button onclick="test('red')">🌹 KIRMIZI</button><button onclick="this.parentElement.remove()">Gizle</button></div></main><footer>💬 MAVİ / KIRMIZI YAZ • 🌹 GÜL = 5 ASKER<div class="hint">🎁 HEDİYE = TAKIM GÜCÜ • 🦁 ASLAN = BOSS</div></footer></div><script>
 const canvas=document.getElementById('field'),ctx=canvas.getContext('2d');let W=0,H=0;function resize(){W=canvas.clientWidth;H=canvas.clientHeight;canvas.width=W*devicePixelRatio;canvas.height=H*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}addEventListener('resize',resize);resize();const troops=[],scores={blue:0,red:0};let msgTimer;function banner(t){const b=document.getElementById('banner');b.textContent=t;b.classList.remove('hide');clearTimeout(msgTimer);msgTimer=setTimeout(()=>b.classList.add('hide'),3800)}function spawn(team,n,name){for(let i=0;i<Math.min(n,65);i++)troops.push({team,name,x:(team==='blue'?.16:.84)*W+(Math.random()-.5)*W*.22,y:Math.random()*H,vx:0,vy:0,hp:100,phase:Math.random()*6.28});scores[team]+=n;document.getElementById(team).textContent=scores[team];update()}function update(){document.getElementById('bc').textContent=troops.filter(x=>x.team==='blue').length+' asker';document.getElementById('rc').textContent=troops.filter(x=>x.team==='red').length+' asker'}function handle(d){if(d.type==='status'){document.getElementById('status').textContent=d.connected?'🟢 TikTok LIVE BAĞLANDI':'🟠 TikTok bekleniyor'+(d.lastError?' • '+d.lastError:'');return}if(d.type==='join'){spawn(d.team,1,d.name);banner('⚔ '+d.name+' '+(d.team==='blue'?'MAVİ':'KIRMIZI')+' TAKIMA KATILDI!')}if(d.type==='gift'){spawn(d.team,d.soldiers,d.name);banner((d.boss?'🦁':'🌹')+' '+d.name+' • '+d.gift+' x'+d.qty+' • +'+d.soldiers+' ASKER!')}if(d.type==='like'){scores[d.team]+=d.count;document.getElementById(d.team).textContent=scores[d.team]}}function test(team){handle({type:'gift',team,name:'TEST OYUNCUSU',gift:'Gül',qty:1,soldiers:5})}function connect(){const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);ws.onmessage=e=>{try{handle(JSON.parse(e.data))}catch{}};ws.onclose=()=>{document.getElementById('status').textContent='🔴 Oyun sunucusuna yeniden bağlanıyor';setTimeout(connect,3000)}}connect();
 function draw(t){ctx.clearRect(0,0,W,H);ctx.fillStyle='#b2df8b';for(let i=0;i<45;i++){let x=(i*97)%Math.max(W,1),y=(i*137)%Math.max(H,1);ctx.fillRect(x,y,2,7)}ctx.strokeStyle='#e7edbc88';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(W/2,H/2,W*.43,H*.36,0,0,Math.PI*2);ctx.stroke();for(const p of troops){let target=null,best=1e9;for(const q of troops){if(q.team===p.team)continue;const dist=(q.x-p.x)**2+(q.y-p.y)**2;if(dist<best){best=dist;target=q}}if(target){let dx=target.x-p.x,dy=target.y-p.y,dist=Math.sqrt(best)||1;if(dist>14){p.x+=dx/dist*.42;p.y+=dy/dist*.42}else if(Math.random()<.016){target.hp-=20;scores[p.team]++;document.getElementById(p.team).textContent=scores[p.team]}}p.phase+=.08;ctx.fillStyle='#25332844';ctx.beginPath();ctx.ellipse(p.x,p.y+9,7,3,0,0,7);ctx.fill();ctx.fillStyle=p.team==='blue'?'#1267d4':'#e52f42';ctx.fillRect(p.x-5,p.y-2,10,14);ctx.fillStyle='#ffdfb5';ctx.beginPath();ctx.arc(p.x,p.y-7,5,0,7);ctx.fill();ctx.fillStyle=p.team==='blue'?'#053a7b':'#84202b';ctx.fillRect(p.x-6,p.y-12,12,4);ctx.strokeStyle='#233b37';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.x-3,p.y+12);ctx.lineTo(p.x-3+Math.sin(p.phase)*3,p.y+18);ctx.moveTo(p.x+3,p.y+12);ctx.lineTo(p.x+3-Math.sin(p.phase)*3,p.y+18);ctx.stroke();if(p.name&&Math.random()<.002){} }for(let i=troops.length-1;i>=0;i--)if(troops[i].hp<=0)troops.splice(i,1);if(t%30<16)update();requestAnimationFrame(draw)}requestAnimationFrame(draw);</script></body></html>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<style>
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #08111f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#game, #app, #arena {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100dvh;
+}
+
+canvas {
+  display: block;
+  max-width: 100%;
+  touch-action: none;
+}
+</style>
