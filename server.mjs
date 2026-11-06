@@ -1,153 +1,175 @@
 
-import express from 'express';
-import { WebSocketServer } from 'ws';
+import express from "express";
+import { WebSocketServer, WebSocket } from "ws";
 import {
   TikTokLiveConnection,
   WebcastEvent,
   ControlEvent
-} from 'tiktok-live-connector';
+} from "tiktok-live-connector";
 
 const app = express();
-const username = (process.env.TIKTOK_USERNAME || 'voxiralive')
-  .replace(/^@/, '');
-
-const port = Number(process.env.PORT || 3000);
-
-app.use(express.static('public'));
-
-app.get('/', (req, res) => {
-  res.sendFile('index.html', {
-    root: process.cwd() + '/public'
-  });
-});
-
-app.get('/health', (req, res) => {
-  res.json({
-    running: true,
-    connected,
-    username,
-    lastError
-  });
-});
-
-const server = app.listen(port, '0.0.0.0', () => {
-  console.log('VOXIRA ARENA server started on port ' + port);
-});
-
-const wss = new WebSocketServer({ server });
+const PORT = Number(process.env.PORT || 3000);
+const USERNAME = (process.env.TIKTOK_USERNAME || "voxiralive")
+  .replace(/^@/, "");
 
 const users = new Map();
 const streaks = new Map();
 
 let connected = false;
-let lastError = '';
+let connecting = false;
+let lastError = "";
+let lastEvent = null;
 
-function emit(data) {
-  const message = JSON.stringify(data);
+const conn = new TikTokLiveConnection(USERNAME, {
+  processInitialData: true
+});
+
+// Serve index.html from the GitHub repository root.
+app.use(express.static(process.cwd()));
+
+app.get("/", (req, res) => {
+  res.sendFile("index.html", {
+    root: process.cwd()
+  });
+});
+
+app.get("/health", (req, res) => {
+  res.json({
+    running: true,
+    connected,
+    connecting,
+    username: USERNAME,
+    players: users.size,
+    lastError,
+    lastEvent
+  });
+});
+
+const server = app.listen(PORT, "0.0.0.0", () => {
+  console.log("VOXIRA ARENA running on port " + PORT);
+});
+
+const wss = new WebSocketServer({ server });
+
+function broadcast(event) {
+  const message = JSON.stringify(event);
 
   for (const client of wss.clients) {
-    if (client.readyState === 1) {
+    if (client.readyState === WebSocket.OPEN) {
       client.send(message);
     }
   }
 }
 
-function status() {
-  emit({
-    type: 'status',
+function sendStatus() {
+  broadcast({
+    type: "status",
     connected,
-    username,
+    connecting,
+    username: USERNAME,
     lastError
   });
 }
 
-wss.on('connection', (ws) => {
+wss.on("connection", (ws) => {
   ws.send(JSON.stringify({
-    type: 'status',
+    type: "status",
     connected,
-    username,
+    connecting,
+    username: USERNAME,
     lastError
   }));
 
   ws.send(JSON.stringify({
-    type: 'hello',
+    type: "hello",
     teams: Object.fromEntries(users)
   }));
 });
 
-function uid(data) {
+function getId(data) {
   return String(
-    data.user?.id ||
     data.user?.userId ||
+    data.user?.id ||
     data.user?.uniqueId ||
+    data.userId ||
     data.uniqueId ||
-    'unknown'
+    ""
   );
 }
 
-function nick(data) {
+function getName(data) {
   return String(
-    data.user?.displayId ||
     data.user?.nickname ||
+    data.user?.displayId ||
+    data.nickname ||
     data.uniqueId ||
-    'Izleyici'
+    "Izleyici"
   ).slice(0, 30);
 }
 
-const conn = new TikTokLiveConnection(username, {
-  processInitialData: true
-});
+function getTeam(data) {
+  return users.get(getId(data));
+}
 
+// Team selection
 conn.on(WebcastEvent.CHAT, (data) => {
-  const msg = String(
-    data.content || data.comment || ''
-  ).trim().toLocaleLowerCase('tr-TR');
+  const message = String(
+    data.comment || data.content || ""
+  ).trim().toLocaleLowerCase("tr-TR");
 
-  let team = null;
+  let team;
 
-  if (msg === 'mavi' || msg === '1') {
-    team = 'blue';
-  }
-
-  if (
-    msg === 'kırmızı' ||
-    msg === 'kirmizi' ||
-    msg === '2'
+  if (message === "mavi" || message === "1") {
+    team = "blue";
+  } else if (
+    message === "kırmızı" ||
+    message === "kirmizi" ||
+    message === "2"
   ) {
-    team = 'red';
+    team = "red";
+  } else {
+    return;
   }
 
-  if (!team) return;
+  const id = getId(data);
+  if (!id) return;
 
-  const id = uid(data);
-  const name = nick(data);
+  const name = getName(data);
 
   users.set(id, { team, name });
 
-  emit({
-    type: 'join',
+  const event = {
+    type: "join",
     id,
-    team,
-    name
-  });
+    name,
+    team
+  };
 
-  console.log(name + ' joined ' + team);
+  lastEvent = event;
+  broadcast(event);
+
+  console.log(name + " joined " + team);
 });
 
+// Gift -> soldiers
 conn.on(WebcastEvent.GIFT, (data) => {
-  const id = uid(data);
-  const user = users.get(id);
+  const id = getId(data);
+  const player = users.get(id);
 
-  if (!user) return;
+  if (!player) {
+    console.log("Gift from player without team");
+    return;
+  }
 
   const gift = String(
     data.giftDetails?.giftName ||
     data.extendedGiftInfo?.name ||
     data.giftName ||
-    'Hediye'
+    "Hediye"
   );
 
-  const key = id + ':' + String(data.giftId || gift);
+  const giftId = String(data.giftId || gift);
+  const key = id + ":" + giftId;
 
   const count = Math.max(
     1,
@@ -155,13 +177,11 @@ conn.on(WebcastEvent.GIFT, (data) => {
   );
 
   const isStreak = Number(data.giftType) === 1;
-
-  let qty = count;
+  let quantity = count;
 
   if (isStreak) {
     const previous = streaks.get(key) || 0;
-
-    qty = Math.max(0, count - previous);
+    quantity = Math.max(0, count - previous);
     streaks.set(key, count);
 
     if (data.repeatEnd) {
@@ -169,39 +189,43 @@ conn.on(WebcastEvent.GIFT, (data) => {
     }
   }
 
-  if (!qty) return;
+  if (quantity <= 0) return;
 
-  qty = Math.min(qty, 100);
+  quantity = Math.min(quantity, 100);
 
   const rose = /rose|gül|gul/i.test(gift);
   const lion = /lion|aslan/i.test(gift);
 
   const soldiersPerGift = lion ? 60 : rose ? 5 : 15;
 
-  emit({
-    type: 'gift',
-    team: user.team,
-    name: user.name,
+  const event = {
+    type: "gift",
+    team: player.team,
+    name: player.name,
     gift,
-    qty,
-    soldiers: qty * soldiersPerGift,
+    qty: quantity,
+    soldiers: quantity * soldiersPerGift,
     boss: lion
-  });
+  };
+
+  lastEvent = event;
+  broadcast(event);
 
   console.log(
-    user.name + ' sent ' + gift + ' x' + qty
+    player.name + " sent " + gift +
+    " x" + quantity
   );
 });
 
+// Likes
 conn.on(WebcastEvent.LIKE, (data) => {
-  const user = users.get(uid(data));
+  const player = getTeam(data);
+  if (!player) return;
 
-  if (!user) return;
-
-  emit({
-    type: 'like',
-    team: user.team,
-    name: user.name,
+  broadcast({
+    type: "like",
+    team: player.team,
+    name: player.name,
     count: Math.min(
       50,
       Math.max(1, Number(data.likeCount || 1))
@@ -209,49 +233,52 @@ conn.on(WebcastEvent.LIKE, (data) => {
   });
 });
 
+// Connection events
 conn.on(ControlEvent.ERROR, (error) => {
   lastError = String(
-    error?.info ||
-    error?.message ||
-    error
-  ).slice(0, 200);
+    error?.message || error?.info || error
+  ).slice(0, 250);
 
-  console.error('TikTok error:', lastError);
-  status();
+  console.error("TikTok error:", lastError);
+  sendStatus();
 });
 
 conn.on(ControlEvent.DISCONNECTED, () => {
   connected = false;
-  console.log('TikTok disconnected');
-  status();
+  console.log("TikTok disconnected");
+  sendStatus();
 });
 
 async function connectLoop() {
   while (true) {
-    if (!connected) {
+    if (!connected && !connecting) {
+      connecting = true;
+      sendStatus();
+
       try {
-        console.log('Connecting to @' + username);
+        console.log("Connecting to @" + USERNAME);
 
         await conn.connect();
 
         connected = true;
-        lastError = '';
+        lastError = "";
 
-        console.log('TikTok LIVE connected');
-        status();
+        console.log("TikTok LIVE connected!");
       } catch (error) {
         connected = false;
 
         lastError = String(
           error?.message || error
-        ).slice(0, 200);
+        ).slice(0, 250);
 
-        console.error('Connection failed:', lastError);
-        status();
+        console.error("Connection failed:", lastError);
+      } finally {
+        connecting = false;
+        sendStatus();
       }
     }
 
-    await new Promise(resolve => {
+    await new Promise((resolve) => {
       setTimeout(resolve, 15000);
     });
   }
